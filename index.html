@@ -151,7 +151,7 @@ async function fetchNewMessages() {
             newMessages.forEach(msg => addChatMessage(msg, false));
             lastTimestamp = newMessages[newMessages.length - 1].timestamp;
 
-            // Scrolla verso il basso solo se l'utente era giÃ  in fondo.
+            // Scrolla verso il basso solo se l'utente era già in fondo.
             if (isScrolledToBottom) {
                 chatHistoryDiv.scrollTop = chatHistoryDiv.scrollHeight;
             }
