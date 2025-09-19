@@ -14,7 +14,7 @@ _Esempio Pratico (Ciclo 1): Abbiamo identificato un problema di esperienza utent
 
 Una volta che la funzionalitÃ Ã¨ stata costruita, misuriamo il suo impatto. Questo puÃ² includere metriche quantitative (es. tempo di caricamento, numero di errori) e qualitative (es. feedback degli utenti, analisi dell'usabilitÃ ).
 
-_Esempio Pratico (Ciclo 1): La fase successiva sarÃ un test manuale (QA) per verificare se le modifiche hanno effettivamente risolto i problemi di sfarfallio e scroll, e se l'esperienza utente Ã¨ migliorata come previsto._
+_Esempio Pratico (Ciclo 1): La fase successiva sarÃ un test manuale (QA) per verificare se le modifiche hanno effettivamente risolto i problemi di sfarfallio e scroll. Il processo dettagliato Ã¨ descritto nella nostra [Guida al Test di Quality Assurance (QA)](./QA_TESTING_GUIDE.md)._
 
 ### 3. Analyze (Analizza)
 
