@@ -2,19 +2,22 @@
 /**
  * @file
  * Backend API per la gestione della chat e degli appuntamenti dello studio veterinario.
- *
- * Questo script gestisce le richieste HTTP per:
- * - Ricevere nuovi appuntamenti/messaggi dall'utente.
- * - Ricevere messaggi inviati dal veterinario (via Webhook da Make.com).
- * - Fornire la cronologia della chat a un client specifico.
- * Utilizza un file JSON (`appuntamenti_data.json`) come datastore.
  */
+
+// === HEADERS CORS ===
+// Consente alla pagina su github.io di comunicare con questo server localhost.
+header("Access-Control-Allow-Origin: *"); 
+header("Access-Control-Allow-Methods: GET, POST, OPTIONS");
+header("Access-Control-Allow-Headers: Content-Type, Authorization");
+
+// Gestisce la richiesta "pre-flight" OPTIONS inviata dai browser.
+if ($_SERVER['REQUEST_METHOD'] == 'OPTIONS') {
+    exit(0);
+}
 
 // === HEADER ===
 header('Content-Type: application/json');
-header('Access-Control-Allow-Origin: *');
-header('Access-Control-Allow-Methods: GET, POST, OPTIONS');
-header('Access-Control-Allow-Headers: Content-Type');
+
 
 // === CONFIGURAZIONE ===
 $dataFile = '../data/appuntamenti_data.json';
@@ -23,9 +26,6 @@ $dataFile = '../data/appuntamenti_data.json';
 
 /**
  * Legge e decodifica i dati dal file JSON.
- *
- * @param string $file Il percorso del file di dati.
- * @return array I dati decodificati o una struttura vuota in caso di errore.
  */
 function readData($file) {
     if (!file_exists($file)) {
@@ -37,11 +37,7 @@ function readData($file) {
 }
 
 /**
- * Scrive i dati nel file JSON in modo sicuro utilizzando il file locking.
- *
- * @param string $file Il percorso del file di dati.
- * @param array $data I dati da codificare e scrivere.
- * @return void
+ * Scrive i dati nel file JSON in modo sicuro.
  */
 function writeData($file, $data) {
     file_put_contents($file, json_encode($data, JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE), LOCK_EX);
@@ -49,7 +45,6 @@ function writeData($file, $data) {
 
 // === INIZIALIZZAZIONE ===
 if (!file_exists($dataFile)) {
-    // Se il file non esiste, lo crea con una struttura base.
     if (!is_dir(dirname($dataFile))) {
         mkdir(dirname($dataFile), 0777, true);
     }
@@ -60,25 +55,17 @@ if (!file_exists($dataFile)) {
 // === ROUTING ===
 $method = $_SERVER['REQUEST_METHOD'];
 
-if ($method === 'OPTIONS') {
-    // Gestisce le richieste pre-flight CORS
-    echo json_encode(['status' => 'ok']);
-    exit;
-}
-
 // --- GESTIONE RICHIESTE POST ---
 if ($method === 'POST') {
     $input = file_get_contents('php://input');
     $postData = json_decode($input, true);
 
-    // Validazione e sanitizzazione di base dell'input
     if (!is_array($postData)) {
         http_response_code(400);
         echo json_encode(['error' => 'Invalid JSON input']);
         exit;
     }
     
-    // Sanitizzazione ricorsiva per prevenire XSS
     array_walk_recursive($postData, function(&$value) {
         $value = is_string($value) ? htmlspecialchars($value, ENT_QUOTES, 'UTF-8') : $value;
     });
@@ -93,7 +80,6 @@ if ($method === 'POST') {
         exit;
     }
 
-    // Trova l'indice dell'appuntamento per il clientId specificato
     $appointmentIndex = -1;
     foreach ($data['appointments'] as $index => $apt) {
         if ($apt['clientId'] === $clientId) {
@@ -122,14 +108,12 @@ if ($method === 'POST') {
             ];
 
             if ($appointmentIndex !== -1) {
-                // Appuntamento esistente: aggiungi messaggio alla cronologia
                 $data['appointments'][$appointmentIndex]['chatHistory'][] = $newMessage;
             } else {
-                // Nuovo appuntamento: crea una nuova entry
                 $newAppointment = [
                     'clientId' => $clientId,
                     'dateTime' => $timestamp, 
-                    'details' => $text, // Il primo messaggio è anche il dettaglio iniziale
+                    'details' => $text,
                     'chatHistory' => [$newMessage]
                 ];
                 $data['appointments'][] = $newAppointment;
@@ -153,11 +137,6 @@ if ($method === 'POST') {
     $data = readData($dataFile);
 
     switch ($action) {
-        /**
-         * Recupera i messaggi della chat per un client.
-         * Se viene fornito il parametro 'since', restituisce solo i messaggi
-         * più recenti di quel timestamp (formato ISO 8601).
-         */
         case 'get_chat_messages':
             if (!$clientId) {
                 http_response_code(400);
@@ -184,14 +163,11 @@ if ($method === 'POST') {
                                     return false;
                                 }
                             });
-                            // Re-indicizza l'array per garantire che sia un array JSON.
                             $chatHistory = array_values($chatHistory);
                         } catch (Exception $e) {
-                            // In caso di timestamp non valido, restituisce un array vuoto.
                             $chatHistory = [];
                         }
                     } else {
-                        // Se 'since' non è specificato, restituisce l'intera cronologia.
                         $chatHistory = $fullChatHistory;
                     }
                     break;
