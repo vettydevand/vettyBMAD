@@ -5,16 +5,16 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
 <title>Studio Veterinario Bianchi - Assistente Virtuale</title>
 <style>
+  /* Stili di base per un'interfaccia di chat pulita */
   body, html { margin: 0; padding: 0; font-family: sans-serif; background: #f0f0f0; }
-  .chat-container { width: 100%; max-width: 500px; margin: 20px auto; border: 1px solid #ccc; background: white; }
-  .chat-history { height: 400px; overflow-y: scroll; padding: 10px; border-bottom: 1px solid #ccc; }
-  .message-input { display: flex; padding: 10px; }
+  .chat-container { width: 100%; max-width: 500px; margin: 20px auto; border: 1px solid #ccc; background: white; display: flex; flex-direction: column; height: calc(100vh - 40px); }
+  .chat-history { flex: 1; overflow-y: auto; padding: 10px; border-bottom: 1px solid #ccc; display: flex; flex-direction: column; }
+  .message-input { display: flex; padding: 10px; border-top: 1px solid #eee; }
   .message-input input { flex: 1; padding: 8px; border: 1px solid #ccc; border-radius: 5px; }
   .message-input button { padding: 8px 12px; margin-left: 10px; background-color: #2c5530; color: white; border: none; border-radius: 5px; cursor: pointer; }
   .message { margin-bottom: 10px; padding: 8px 12px; border-radius: 15px; max-width: 80%; line-height: 1.4; }
   .message.user { background: #dcf8c6; align-self: flex-end; margin-left: auto; }
   .message.vet { background: #e5e5ea; align-self: flex-start; margin-right: auto; }
-  .chat-history { display: flex; flex-direction: column; }
 </style>
 </head>
 <body>
@@ -28,35 +28,44 @@
 </div>
 
 <script>
-const API_URL = './test.php'; // Assumendo che sia nella stessa cartella
-let clientId = localStorage.getItem('vettyClientId');
+// === CONFIGURAZIONE ===
+const API_URL = './test.php'; // URL del backend PHP.
+let clientId = localStorage.getItem('vettyClientId'); // Recupera l'ID del client dal localStorage.
+
+// Se l'ID non esiste, ne genera uno nuovo e lo salva per mantenere la sessione di chat tra le visite.
 if (!clientId) {
     clientId = 'client-' + Date.now() + '-' + Math.random().toString(36).substring(2, 8);
     localStorage.setItem('vettyClientId', clientId);
 }
 
-let messagePollInterval;
+let messagePollInterval; // Variabile per tenere traccia dell'intervallo di polling.
 
+// === INIZIALIZZAZIONE ===
 document.addEventListener('DOMContentLoaded', () => {
     const sendButton = document.getElementById('sendButton');
     const messageInput = document.getElementById('messageInput');
 
+    // Associa la funzione sendMessage all'evento click del pulsante e alla pressione del tasto Invio.
     sendButton.addEventListener('click', sendMessage);
     messageInput.addEventListener('keypress', (e) => {
-        if (e.key === 'Enter') {
-            sendMessage();
-        }
+        if (e.key === 'Enter') sendMessage();
     });
 
-    fetchMessages(); // Carica la cronologia all'avvio
+    fetchMessages(); // Carica la cronologia dei messaggi all'avvio dell'applicazione.
+    
+    // Avvia il polling per recuperare nuovi messaggi ogni 5 secondi.
     if (messagePollInterval) clearInterval(messagePollInterval);
     messagePollInterval = setInterval(fetchMessages, 5000);
 });
 
+/**
+ * Invia un nuovo messaggio dell'utente al backend.
+ * Il messaggio viene prima mostrato localmente per un'esperienza utente reattiva.
+ */
 async function sendMessage() {
     const messageInput = document.getElementById('messageInput');
     const text = messageInput.value.trim();
-    if (!text) return;
+    if (!text) return; // Non inviare messaggi vuoti.
 
     const message = {
         sender: 'user',
@@ -64,26 +73,30 @@ async function sendMessage() {
         timestamp: new Date().toISOString()
     };
 
-    // Aggiunge immediatamente il messaggio dell'utente all'UI
-    addChatMessage(message);
+    addChatMessage(message); // Aggiunge il messaggio all'UI immediatamente (rendering ottimistico).
     messageInput.value = '';
 
     try {
+        // Invia i dati al backend (webhook di Make.com gestito da test.php).
         await fetch(API_URL, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
                 clientId: clientId,
-                details: text,
+                details: text, // Il primo messaggio di una chat viene inviato come 'details'.
                 dateTime: new Date().toISOString()
             })
         });
     } catch (error) {
         console.error('Error sending message:', error);
-        // Qui si potrebbe implementare una logica per indicare che il messaggio non è stato inviato
+        // Si potrebbe aggiungere una logica per mostrare un errore nell'UI.
     }
 }
 
+/**
+ * Recupera la cronologia dei messaggi dal backend per il clientId corrente.
+ * Questa funzione viene chiamata all'avvio e poi a intervalli regolari (polling).
+ */
 async function fetchMessages() {
     try {
         const response = await fetch(`${API_URL}?action=get_chat_messages&clientId=${clientId}`);
@@ -92,10 +105,10 @@ async function fetchMessages() {
         }
         const messages = await response.json();
         
-        // Svuota e renderizza tutta la cronologia per semplicità.
-        // Per ottimizzare, si potrebbe confrontare con i messaggi esistenti.
+        // Per semplicitÃ , l'intera cronologia viene ricaricata.
+        // Un'ottimizzazione futura potrebbe essere quella di aggiungere solo i nuovi messaggi.
         const chatHistoryDiv = document.getElementById('chatHistory');
-        chatHistoryDiv.innerHTML = '';
+        chatHistoryDiv.innerHTML = ''; // Pulisce la chat prima di ripopolarla.
         messages.forEach(addChatMessage);
 
     } catch (error) {
@@ -103,6 +116,11 @@ async function fetchMessages() {
     }
 }
 
+/**
+ * Aggiunge un singolo messaggio all'interfaccia della chat.
+ * Applica classi CSS diverse a seconda del mittente ('user' o 'vet').
+ * @param {object} message L'oggetto del messaggio, con `sender` e `text`.
+ */
 function addChatMessage(message) {
     const chatHistoryDiv = document.getElementById('chatHistory');
     const messageDiv = document.createElement('div');
@@ -110,10 +128,11 @@ function addChatMessage(message) {
     messageDiv.textContent = message.text;
     chatHistoryDiv.appendChild(messageDiv);
 
-    // Scrolla fino in fondo
+    // Scrolla automaticamente fino all'ultimo messaggio.
     chatHistoryDiv.scrollTop = chatHistoryDiv.scrollHeight;
 }
 
+// Pulisce l'intervallo di polling quando la pagina viene chiusa per evitare memory leak.
 window.addEventListener('beforeunload', () => {
     if (messagePollInterval) {
         clearInterval(messagePollInterval);
