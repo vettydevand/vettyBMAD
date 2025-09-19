@@ -21,6 +21,23 @@
           "timestamp": "2024-07-17T14:05:00Z"
         }
       ]
+    },
+    {
+      "clientId": "test-client-curl",
+      "dateTime": "2024-08-01T10:00:00Z",
+      "details": "Ciao, questo è un test da curl.",
+      "chatHistory": [
+        {
+          "sender": "user",
+          "text": "Ciao, questo è un test da curl.",
+          "timestamp": "2024-08-01T10:00:00Z"
+        },
+        {
+          "sender": "vet",
+          "text": "Ricevuto. Questo è un test incrementale.",
+          "timestamp": "2024-08-01T10:05:00Z"
+        }
+      ]
     }
   ]
 }
