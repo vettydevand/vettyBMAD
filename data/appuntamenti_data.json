@@ -14,6 +14,11 @@
           "sender": "vet",
           "text": "Ok, mi descriva i sintomi.",
           "timestamp": "2024-07-17T14:02:00Z"
+        },
+        {
+          "sender": "vet",
+          "text": "Ricevuto. Questo è un messaggio di test.",
+          "timestamp": "2024-07-17T14:05:00Z"
         }
       ]
     }

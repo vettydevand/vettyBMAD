@@ -25,6 +25,18 @@ This two-phase approach eliminates both **planning inconsistency** and **context
 
 **📖 [See the complete workflow in the User Guide](docs/user-guide.md)** - Planning phase, development cycle, and all agent roles
 
+---
+
+### VettyBMAD: Un Caso di Studio Pratico
+
+All'interno di questo repository si trova **VettyBMAD**, un'applicazione di assistente veterinario che funge da caso di studio per l'applicazione del metodo BMAD in un contesto reale. Questo sottoprogetto dimostra come utilizzare un approccio iterativo e documentato per sviluppare, misurare e migliorare un'applicazione reale.
+
+- **[Panoramica del Progetto VettyBMAD](./docs/VETTY_BMAD_OVERVIEW.md)**: Scopri gli obiettivi, le funzionalitÃ e l'architettura della chat per veterinari.
+- **[Guida all'Installazione](./docs/INSTALL_GUIDE.md)**: Istruzioni dettagliate per il deploy dell'applicazione.
+- **[Metodologia BMAD Applicata](./docs/BMAD_METHODOLOGY.md)**: Un'analisi di come il ciclo Build, Measure, Analyze, Document viene utilizzato nel progetto.
+
+---
+
 ## Quick Navigation
 
 ### Understanding the BMad Workflow

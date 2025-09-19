@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
 <title>Studio Veterinario Bianchi - Assistente Virtuale</title>
 <style>
-  /* Stili di base per un'interfaccia di chat pulita */
+  /* Stili ... (invariati) */
   body, html { margin: 0; padding: 0; font-family: sans-serif; background: #f0f0f0; }
   .chat-container { width: 100%; max-width: 500px; margin: 20px auto; border: 1px solid #ccc; background: white; display: flex; flex-direction: column; height: calc(100vh - 40px); }
   .chat-history { flex: 1; overflow-y: auto; padding: 10px; border-bottom: 1px solid #ccc; display: flex; flex-direction: column; }
@@ -28,111 +28,158 @@
 </div>
 
 <script>
-// === CONFIGURAZIONE ===
-const API_URL = 'test.php'; // URL del backend PHP, relativo alla posizione di questo file.
-let clientId = localStorage.getItem('vettyClientId'); // Recupera l'ID del client dal localStorage.
+/**
+ * @fileoverview Logica frontend per l'assistente di chat VettyBMAD.
+ */
 
-// Se l'ID non esiste, ne genera uno nuovo e lo salva per mantenere la sessione di chat tra le visite.
+// === CONFIGURAZIONE ===
+const API_URL = 'test.php';
+let clientId = localStorage.getItem('vettyClientId');
 if (!clientId) {
     clientId = 'client-' + Date.now() + '-' + Math.random().toString(36).substring(2, 8);
     localStorage.setItem('vettyClientId', clientId);
 }
 
-let messagePollInterval; // Variabile per tenere traccia dell'intervallo di polling.
+/**
+ * Timestamp dell'ultimo messaggio ricevuto, in formato ISO 8601.
+ * Usato per richiedere solo i nuovi messaggi al backend.
+ * @type {string|null}
+ */
+let lastTimestamp = null;
+let messagePollInterval;
 
 // === INIZIALIZZAZIONE ===
 document.addEventListener('DOMContentLoaded', () => {
     const sendButton = document.getElementById('sendButton');
     const messageInput = document.getElementById('messageInput');
 
-    // Associa la funzione sendMessage all'evento click del pulsante e alla pressione del tasto Invio.
     sendButton.addEventListener('click', sendMessage);
     messageInput.addEventListener('keypress', (e) => {
         if (e.key === 'Enter') sendMessage();
     });
 
-    fetchMessages(); // Carica la cronologia dei messaggi all'avvio dell'applicazione.
+    // 1. Carica la cronologia completa all'avvio.
+    fetchInitialMessages(); 
     
-    // Avvia il polling per recuperare nuovi messaggi ogni 5 secondi.
+    // 2. Avvia il polling per i *nuovi* messaggi.
     if (messagePollInterval) clearInterval(messagePollInterval);
-    messagePollInterval = setInterval(fetchMessages, 5000);
+    messagePollInterval = setInterval(fetchNewMessages, 5000);
 });
 
 /**
- * Invia un nuovo messaggio dell'utente al backend.
- * Il messaggio viene prima mostrato localmente per un'esperienza utente reattiva.
+ * Invia un messaggio dell'utente al backend.
+ * @returns {Promise<void>}
  */
 async function sendMessage() {
     const messageInput = document.getElementById('messageInput');
     const text = messageInput.value.trim();
-    if (!text) return; // Non inviare messaggi vuoti.
+    if (!text) return;
 
+    const timestamp = new Date().toISOString();
     const message = {
         sender: 'user',
         text: text,
-        timestamp: new Date().toISOString()
+        timestamp: timestamp
     };
 
-    addChatMessage(message); // Aggiunge il messaggio all'UI immediatamente (rendering ottimistico).
+    addChatMessage(message, true); // Aggiunge all'UI e forza lo scroll.
     messageInput.value = '';
+    lastTimestamp = timestamp; // Aggiornamento ottimistico del timestamp
 
     try {
-        // Invia i dati al backend (webhook di Make.com gestito da test.php).
         await fetch(API_URL, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
+                action: 'create_appointment', // Esplicito per chiarezza
                 clientId: clientId,
-                details: text, // Il primo messaggio di una chat viene inviato come 'details'.
-                dateTime: new Date().toISOString()
+                details: text,
+                dateTime: timestamp
             })
         });
     } catch (error) {
-        console.error('Error sending message:', error);
-        // Si potrebbe aggiungere una logica per mostrare un errore nell'UI.
+        console.error('Errore durante l'invio del messaggio:', error);
     }
 }
 
 /**
- * Recupera la cronologia dei messaggi dal backend per il clientId corrente.
- * Questa funzione viene chiamata all'avvio e poi a intervalli regolari (polling).
+ * Carica la cronologia *completa* dei messaggi all'avvio dell'applicazione.
+ * @returns {Promise<void>}
  */
-async function fetchMessages() {
+async function fetchInitialMessages() {
     try {
         const response = await fetch(`${API_URL}?action=get_chat_messages&clientId=${clientId}`);
-        if (!response.ok) {
-            throw new Error(`HTTP error! status: ${response.status}`);
-        }
+        if (!response.ok) throw new Error(`Errore HTTP! stato: ${response.status}`);
+        
         const messages = await response.json();
         
-        // Per semplicitÃ , l'intera cronologia viene ricaricata.
-        // Un'ottimizzazione futura potrebbe essere quella di aggiungere solo i nuovi messaggi.
         const chatHistoryDiv = document.getElementById('chatHistory');
-        chatHistoryDiv.innerHTML = ''; // Pulisce la chat prima di ripopolarla.
-        messages.forEach(addChatMessage);
+        chatHistoryDiv.innerHTML = ''; // Pulisce prima di caricare la cronologia.
+        
+        messages.forEach(msg => addChatMessage(msg, false));
+
+        if (messages.length > 0) {
+            lastTimestamp = messages[messages.length - 1].timestamp;
+        }
+
+        // Scrolla alla fine dopo il caricamento iniziale.
+        chatHistoryDiv.scrollTop = chatHistoryDiv.scrollHeight;
 
     } catch (error) {
-        console.error('Error fetching messages:', error);
+        console.error('Errore durante il caricamento della cronologia:', error);
     }
 }
 
 /**
- * Aggiunge un singolo messaggio all'interfaccia della chat.
- * Applica classi CSS diverse a seconda del mittente ('user' o 'vet').
- * @param {object} message L'oggetto del messaggio, con `sender` e `text`.
+ * Recupera solo i *nuovi* messaggi dal backend utilizzando il `lastTimestamp`.
+ * @returns {Promise<void>}
  */
-function addChatMessage(message) {
+async function fetchNewMessages() {
+    if (!lastTimestamp) return; // Non fare nulla se la cronologia iniziale non Ã¨ ancora stata caricata.
+
+    const chatHistoryDiv = document.getElementById('chatHistory');
+    const isScrolledToBottom = chatHistoryDiv.scrollHeight - chatHistoryDiv.clientHeight <= chatHistoryDiv.scrollTop + 1;
+
+    try {
+        const url = `${API_URL}?action=get_chat_messages&clientId=${clientId}&since=${encodeURIComponent(lastTimestamp)}`;
+        const response = await fetch(url);
+        if (!response.ok) throw new Error(`Errore HTTP! stato: ${response.status}`);
+
+        const newMessages = await response.json();
+
+        if (newMessages.length > 0) {
+            newMessages.forEach(msg => addChatMessage(msg, false));
+            lastTimestamp = newMessages[newMessages.length - 1].timestamp;
+
+            // Scrolla verso il basso solo se l'utente era giÃ  in fondo.
+            if (isScrolledToBottom) {
+                chatHistoryDiv.scrollTop = chatHistoryDiv.scrollHeight;
+            }
+        }
+    } catch (error) {
+        console.error('Errore durante il recupero dei nuovi messaggi:', error);
+    }
+}
+
+
+/**
+ * Aggiunge un singolo messaggio di chat all'interfaccia utente.
+ * @param {object} message - L'oggetto del messaggio.
+ * @param {boolean} [forceScroll=false] - Se true, forza lo scroll verso il basso.
+ */
+function addChatMessage(message, forceScroll = false) {
     const chatHistoryDiv = document.getElementById('chatHistory');
     const messageDiv = document.createElement('div');
     messageDiv.className = `message ${message.sender}`;
     messageDiv.textContent = message.text;
+    
     chatHistoryDiv.appendChild(messageDiv);
 
-    // Scrolla automaticamente fino all'ultimo messaggio.
-    chatHistoryDiv.scrollTop = chatHistoryDiv.scrollHeight;
+    if (forceScroll) {
+        chatHistoryDiv.scrollTop = chatHistoryDiv.scrollHeight;
+    }
 }
 
-// Pulisce l'intervallo di polling quando la pagina viene chiusa per evitare memory leak.
 window.addEventListener('beforeunload', () => {
     if (messagePollInterval) {
         clearInterval(messagePollInterval);
