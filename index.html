@@ -5,7 +5,6 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
 <title>Studio Veterinario Bianchi - Assistente Virtuale</title>
 <style>
-  /* Stili ... (invariati) */
   body, html { margin: 0; padding: 0; font-family: sans-serif; background: #f0f0f0; }
   .chat-container { width: 100%; max-width: 500px; margin: 20px auto; border: 1px solid #ccc; background: white; display: flex; flex-direction: column; height: calc(100vh - 40px); }
   .chat-history { flex: 1; overflow-y: auto; padding: 10px; border-bottom: 1px solid #ccc; display: flex; flex-direction: column; }
@@ -29,26 +28,52 @@
 
 <script>
 /**
- * @fileoverview Logica frontend per l'assistente di chat VettyBMAD.
+ * @fileoverview Logica frontend per l'assistente di chat VettyBMAD con Backend Mock.
  */
 
-// === CONFIGURAZIONE ===
-const API_URL = 'http://localhost:8000/src/test.php';
-let clientId = localStorage.getItem('vettyClientId');
-if (!clientId) {
-    clientId = 'client-' + Date.now() + '-' + Math.random().toString(36).substring(2, 8);
-    localStorage.setItem('vettyClientId', clientId);
+// === MOCK BACKEND ===
+const mockDatabase = {
+    chatHistory: [
+        { sender: 'vet', text: 'Benvenuto! Sono il suo assistente virtuale. Come posso aiutarla oggi?', timestamp: new Date().toISOString() }
+    ]
+};
+
+/**
+ * Simula il recupero dei messaggi iniziali dal server.
+ * @returns {Promise<object[]>}
+ */
+function mockFetchInitialMessages() {
+    console.log("MOCK: Sto recuperando la cronologia iniziale...");
+    return new Promise(resolve => {
+        setTimeout(() => {
+            resolve(mockDatabase.chatHistory);
+        }, 200);
+    });
 }
 
 /**
- * Timestamp dell'ultimo messaggio ricevuto, in formato ISO 8601.
- * Usato per richiedere solo i nuovi messaggi al backend.
- * @type {string|null}
+ * Simula l'invio di un messaggio al server e la ricezione di una risposta.
+ * @param {string} userMessage - Il testo inviato dall'utente.
+ * @returns {Promise<object>} - La risposta simulata del veterinario.
  */
-let lastTimestamp = null;
-let messagePollInterval;
+function mockSendMessage(userMessage) {
+    console.log(`MOCK: L'utente ha inviato: "${userMessage}"`);
+    mockDatabase.chatHistory.push({ sender: 'user', text: userMessage, timestamp: new Date().toISOString() });
 
-// === INIZIALIZZAZIONE ===
+    return new Promise(resolve => {
+        setTimeout(() => {
+            const vetResponse = {
+                sender: 'vet',
+                text: 'Grazie per il suo messaggio. Un nostro operatore le risponderà il prima possibile.',
+                timestamp: new Date().toISOString()
+            };
+            mockDatabase.chatHistory.push(vetResponse);
+            resolve(vetResponse);
+        }, 1500); // Simula un ritardo nella risposta
+    });
+}
+
+// === LOGICA FRONTEND ===
 document.addEventListener('DOMContentLoaded', () => {
     const sendButton = document.getElementById('sendButton');
     const messageInput = document.getElementById('messageInput');
@@ -58,114 +83,12 @@ document.addEventListener('DOMContentLoaded', () => {
         if (e.key === 'Enter') sendMessage();
     });
 
-    // 1. Carica la cronologia completa all'avvio.
+    // Carica la cronologia iniziale dal backend MOCK.
     fetchInitialMessages(); 
-    
-    // 2. Avvia il polling per i *nuovi* messaggi.
-    if (messagePollInterval) clearInterval(messagePollInterval);
-    messagePollInterval = setInterval(fetchNewMessages, 5000);
 });
 
 /**
- * Invia un messaggio dell'utente al backend.
- * @returns {Promise<void>}
- */
-async function sendMessage() {
-    const messageInput = document.getElementById('messageInput');
-    const text = messageInput.value.trim();
-    if (!text) return;
-
-    const timestamp = new Date().toISOString();
-    const message = {
-        sender: 'user',
-        text: text,
-        timestamp: timestamp
-    };
-
-    addChatMessage(message, true); // Aggiunge all'UI e forza lo scroll.
-    messageInput.value = '';
-    lastTimestamp = timestamp; // Aggiornamento ottimistico del timestamp
-
-    try {
-        await fetch(API_URL, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-                action: 'create_appointment', // Esplicito per chiarezza
-                clientId: clientId,
-                details: text,
-                dateTime: timestamp
-            })
-        });
-    } catch (error) {
-        console.error('Errore durante l\'invio del messaggio:', error);
-    }
-}
-
-/**
- * Carica la cronologia *completa* dei messaggi all'avvio dell'applicazione.
- * @returns {Promise<void>}
- */
-async function fetchInitialMessages() {
-    try {
-        const response = await fetch(`${API_URL}?action=get_chat_messages&clientId=${clientId}`);
-        if (!response.ok) throw new Error(`Errore HTTP! stato: ${response.status}`);
-        
-        const messages = await response.json();
-        
-        const chatHistoryDiv = document.getElementById('chatHistory');
-        chatHistoryDiv.innerHTML = ''; // Pulisce prima di caricare la cronologia.
-        
-        messages.forEach(msg => addChatMessage(msg, false));
-
-        if (messages.length > 0) {
-            lastTimestamp = messages[messages.length - 1].timestamp;
-        }
-
-        // Scrolla alla fine dopo il caricamento iniziale.
-        chatHistoryDiv.scrollTop = chatHistoryDiv.scrollHeight;
-
-    } catch (error) {
-        console.error('Errore durante il caricamento della cronologia:', error);
-    }
-}
-
-/**
- * Recupera solo i *nuovi* messaggi dal backend utilizzando il `lastTimestamp`.
- * @returns {Promise<void>}
- */
-async function fetchNewMessages() {
-    if (!lastTimestamp) return; // Non fare nulla se la cronologia iniziale non è ancora stata caricata.
-
-    const chatHistoryDiv = document.getElementById('chatHistory');
-    const isScrolledToBottom = chatHistoryDiv.scrollHeight - chatHistoryDiv.clientHeight <= chatHistoryDiv.scrollTop + 1;
-
-    try {
-        const url = `${API_URL}?action=get_chat_messages&clientId=${clientId}&since=${encodeURIComponent(lastTimestamp)}`;
-        const response = await fetch(url);
-        if (!response.ok) throw new Error(`Errore HTTP! stato: ${response.status}`);
-
-        const newMessages = await response.json();
-
-        if (newMessages.length > 0) {
-            newMessages.forEach(msg => addChatMessage(msg, false));
-            lastTimestamp = newMessages[newMessages.length - 1].timestamp;
-
-            // Scrolla verso il basso solo se l'utente era già in fondo.
-            if (isScrolledToBottom) {
-                chatHistoryDiv.scrollTop = chatHistoryDiv.scrollHeight;
-            }
-        }
-    } catch (error) {
-        console.error('Errore durante il recupero dei nuovi messaggi:', error);
-    }
-}
-
-
-/**
  * Aggiunge un singolo messaggio di chat all'interfaccia utente.
- * @param {object} message - L'oggetto del messaggio.
- * @param {boolean} [forceScroll=false] - Se true, forza lo scroll verso il basso.
  */
 function addChatMessage(message, forceScroll = false) {
     const chatHistoryDiv = document.getElementById('chatHistory');
@@ -175,17 +98,49 @@ function addChatMessage(message, forceScroll = false) {
     
     chatHistoryDiv.appendChild(messageDiv);
 
-    if (forceScroll) {
+    // Scrolla sempre o se l'utente è già in fondo
+    if (forceScroll || chatHistoryDiv.scrollHeight - chatHistoryDiv.clientHeight <= chatHistoryDiv.scrollTop + 50) {
         chatHistoryDiv.scrollTop = chatHistoryDiv.scrollHeight;
     }
 }
 
-window.addEventListener('beforeunload', () => {
-    if (messagePollInterval) {
-        clearInterval(messagePollInterval);
+/**
+ * Carica la cronologia iniziale usando il MOCK.
+ */
+async function fetchInitialMessages() {
+    try {
+        const messages = await mockFetchInitialMessages();
+        const chatHistoryDiv = document.getElementById('chatHistory');
+        chatHistoryDiv.innerHTML = ''; 
+        messages.forEach(msg => addChatMessage(msg));
+        // Scrolla alla fine dopo il caricamento iniziale.
+        chatHistoryDiv.scrollTop = chatHistoryDiv.scrollHeight;
+    } catch (error) {
+        console.error('Errore durante il caricamento della cronologia MOCK:', error);
     }
-});
+}
 
+/**
+ * Invia un messaggio dell'utente usando il MOCK.
+ */
+async function sendMessage() {
+    const messageInput = document.getElementById('messageInput');
+    const text = messageInput.value.trim();
+    if (!text) return;
+
+    // 1. Aggiungi subito il messaggio dell'utente all'UI
+    addChatMessage({ sender: 'user', text: text }, true);
+    messageInput.value = '';
+    
+    // 2. Invia al backend MOCK e attendi la risposta del "veterinario"
+    try {
+        const vetResponse = await mockSendMessage(text);
+        // 3. Aggiungi la risposta del veterinario all'UI
+        addChatMessage(vetResponse, true);
+    } catch (error) {
+        console.error('Errore durante l\'invio del messaggio MOCK:', error);
+    }
+}
 </script>
 </body>
 </html>
