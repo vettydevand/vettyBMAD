@@ -1,0 +1,21 @@
+{
+  "appointments": [
+    {
+      "clientId": "qa-client-001",
+      "dateTime": "2024-07-17T14:00:00Z",
+      "details": "Ciao, il mio gatto non sta bene.",
+      "chatHistory": [
+        {
+          "sender": "user",
+          "text": "Ciao, il mio gatto non sta bene.",
+          "timestamp": "2024-07-17T14:00:00Z"
+        },
+        {
+          "sender": "vet",
+          "text": "Ok, mi descriva i sintomi.",
+          "timestamp": "2024-07-17T14:02:00Z"
+        }
+      ]
+    }
+  ]
+}

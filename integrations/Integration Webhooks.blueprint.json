@@ -1,0 +1,174 @@
+{
+  "name": "Integration Webhooks",
+  "flow": [
+    {
+      "id": 1,
+      "module": "gateway:CustomWebHook",
+      "version": 1,
+      "parameters": {
+        "hook": 3152744,
+        "maxResults": 0
+      },
+      "mapper": {},
+      "metadata": {
+        "designer": {
+          "x": 185,
+          "y": -14
+        },
+        "restore": {
+          "parameters": {
+            "hook": {
+              "data": {
+                "editable": "true"
+              },
+              "label": "My gateway-webhook webhook"
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "hook",
+            "type": "hook:gateway-webhook",
+            "label": "Webhook",
+            "required": true
+          },
+          {
+            "name": "maxResults",
+            "type": "number",
+            "label": "Maximum number of results"
+          }
+        ],
+        "advanced": true
+      }
+    },
+    {
+      "id": 2,
+      "module": "telegram:SendReplyMessage",
+      "version": 1,
+      "parameters": {
+        "__IMTCONN__": 11177221
+      },
+      "mapper": {
+        "text": "\r\n\r\n🆔 **ID:** {{1.appointmentId}}\r\n👤 **Cliente:** {{1.clientId}}\r\n📅 **Data e ora:** {{1.date}} {{1.time}}\r\n📝 **Tipo:** Visita veterinaria\r\n⏸️ **Stato:** prenotato \naaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\r\n",
+        "chatId": "668117404 ",
+        "parseMode": "",
+        "replyMarkup": "",
+        "messageThreadId": "",
+        "replyToMessageId": "",
+        "replyMarkupAssembleType": "reply_markup_enter"
+      },
+      "metadata": {
+        "designer": {
+          "x": 551,
+          "y": -7
+        },
+        "restore": {
+          "expect": {
+            "parseMode": {
+              "label": "Empty"
+            },
+            "disableNotification": {
+              "mode": "chose"
+            },
+            "replyMarkupAssembleType": {
+              "label": "Enter the Reply Markup"
+            }
+          },
+          "parameters": {
+            "__IMTCONN__": {
+              "data": {
+                "scoped": "true",
+                "connection": "telegram"
+              },
+              "label": "Bot Telegram Veterinario"
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "__IMTCONN__",
+            "type": "account:telegram",
+            "label": "Connection",
+            "required": true
+          }
+        ],
+        "expect": [
+          {
+            "name": "chatId",
+            "type": "text",
+            "label": "Chat ID",
+            "required": true
+          },
+          {
+            "name": "text",
+            "type": "text",
+            "label": "Text",
+            "required": true
+          },
+          {
+            "name": "messageThreadId",
+            "type": "number",
+            "label": "Message Thread ID"
+          },
+          {
+            "name": "parseMode",
+            "type": "select",
+            "label": "Parse Mode",
+            "validate": {
+              "enum": ["Markdown", "HTML"]
+            }
+          },
+          {
+            "name": "disableNotification",
+            "type": "boolean",
+            "label": "Disable Notifications"
+          },
+          {
+            "name": "disableWebPagePreview",
+            "type": "boolean",
+            "label": "Disable Link Previews"
+          },
+          {
+            "name": "replyToMessageId",
+            "type": "number",
+            "label": "Original Message ID"
+          },
+          {
+            "name": "replyMarkupAssembleType",
+            "type": "select",
+            "label": "Enter/Assemble the Reply Markup Field",
+            "validate": {
+              "enum": ["reply_markup_enter", "reply_markup_assemble"]
+            }
+          },
+          {
+            "name": "replyMarkup",
+            "type": "text",
+            "label": "Reply Markup"
+          }
+        ]
+      }
+    }
+  ],
+  "metadata": {
+    "instant": true,
+    "version": 1,
+    "scenario": {
+      "roundtrips": 1,
+      "maxErrors": 3,
+      "autoCommit": true,
+      "autoCommitTriggerLast": true,
+      "sequential": false,
+      "slots": null,
+      "confidential": false,
+      "dataloss": false,
+      "dlq": false,
+      "freshVariables": false
+    },
+    "designer": {
+      "orphans": []
+    },
+    "zone": "eu2.make.com",
+    "notes": []
+  }
+}

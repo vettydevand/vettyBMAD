@@ -16,7 +16,7 @@ header('Access-Control-Allow-Methods: GET, POST, OPTIONS'); // Metodi HTTP conse
 header('Access-Control-Allow-Headers: Content-Type'); // Header consentiti nella richiesta.
 
 // === CONFIGURAZIONE ===
-$dataFile = 'appuntamenti_data.json'; // Nome del file usato come database.
+$dataFile = '../data/appuntamenti_data.json'; // Nome del file usato come database.
 
 // === FUNZIONI DI UTILITÀ PER I DATI ===
 
