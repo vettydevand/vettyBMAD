@@ -1,184 +1,117 @@
 <?php
-/**
- * @file
- * Backend API per la gestione della chat e degli appuntamenti dello studio veterinario.
- */
-
-// === HEADERS CORS ===
-// Consente alla pagina su github.io di comunicare con questo server localhost.
+// === INTESTAZIONI CORS ===
+// Permetti l'accesso da qualsiasi origine. Per produzione, dovresti limitarlo.
 header("Access-Control-Allow-Origin: *"); 
+// Specifica i metodi HTTP permessi.
 header("Access-Control-Allow-Methods: GET, POST, OPTIONS");
+// Specifica le intestazioni personalizzate permesse.
 header("Access-Control-Allow-Headers: Content-Type, Authorization");
 
-// Gestisce la richiesta "pre-flight" OPTIONS inviata dai browser.
+// Il browser invia una richiesta OPTIONS "preflight" per verificare i permessi CORS.
+// Dobbiamo rispondere con successo a questa richiesta, altrimenti bloccherà le successive.
 if ($_SERVER['REQUEST_METHOD'] == 'OPTIONS') {
-    exit(0);
+    http_response_code(204); // No Content - è la risposta standard per OPTIONS
+    exit();
 }
 
-// === HEADER ===
-header('Content-Type: application/json');
+// === GESTIONE RICHIESTA ===
 
-
-// === CONFIGURAZIONE ===
-$dataFile = '../data/appuntamenti_data.json';
-
-// === FUNZIONI DI UTILITÀ ===
+// Simula un database di appuntamenti/messaggi in un file JSON
+$dataFile = __DIR__ . '/../data/appuntamenti_data.json';
 
 /**
- * Legge e decodifica i dati dal file JSON.
+ * Legge i messaggi dal file JSON.
+ * @param string $clientId
+ * @return array
  */
-function readData($file) {
-    if (!file_exists($file)) {
-        return ['appointments' => []];
+function getMessages($clientId) {
+    global $dataFile;
+    if (!file_exists($dataFile)) return [];
+
+    $allData = json_decode(file_get_contents($dataFile), true);
+    return isset($allData[$clientId]) ? $allData[$clientId] : [];
+}
+
+/**
+ * Salva un messaggio nel file JSON.
+ * @param string $clientId
+ * @param array $message
+ */
+function saveMessage($clientId, $message) {
+    global $dataFile;
+    $allData = [];
+    if (file_exists($dataFile)) {
+        $allData = json_decode(file_get_contents($dataFile), true);
     }
-    $content = file_get_contents($file);
-    $data = json_decode($content, true);
-    return $data ?: ['appointments' => []];
-}
 
-/**
- * Scrive i dati nel file JSON in modo sicuro.
- */
-function writeData($file, $data) {
-    file_put_contents($file, json_encode($data, JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE), LOCK_EX);
-}
+    if (!isset($allData[$clientId])) {
+        $allData[$clientId] = [];
+    }
+    $allData[$clientId][] = $message;
 
-// === INIZIALIZZAZIONE ===
-if (!file_exists($dataFile)) {
+    // Assicura che la directory esista
     if (!is_dir(dirname($dataFile))) {
         mkdir(dirname($dataFile), 0777, true);
     }
-    writeData($dataFile, ['appointments' => []]);
+
+    file_put_contents($dataFile, json_encode($allData, JSON_PRETTY_PRINT));
 }
 
+$action = $_GET['action'] ?? null;
+$clientId = $_GET['clientId'] ?? null;
 
-// === ROUTING ===
-$method = $_SERVER['REQUEST_METHOD'];
+header('Content-Type: application/json');
 
-// --- GESTIONE RICHIESTE POST ---
-if ($method === 'POST') {
-    $input = file_get_contents('php://input');
-    $postData = json_decode($input, true);
-
-    if (!is_array($postData)) {
-        http_response_code(400);
-        echo json_encode(['error' => 'Invalid JSON input']);
-        exit;
-    }
-    
-    array_walk_recursive($postData, function(&$value) {
-        $value = is_string($value) ? htmlspecialchars($value, ENT_QUOTES, 'UTF-8') : $value;
-    });
-
-    $data = readData($dataFile);
-    $action = $postData['action'] ?? null;
-    $clientId = $postData['clientId'] ?? null;
-
-    if (!$clientId) {
-        http_response_code(400);
-        echo json_encode(['error' => 'clientId is required']);
-        exit;
-    }
-
-    $appointmentIndex = -1;
-    foreach ($data['appointments'] as $index => $apt) {
-        if ($apt['clientId'] === $clientId) {
-            $appointmentIndex = $index;
-            break;
-        }
-    }
-
-    switch ($action) {
-        case 'save_vet_message':
-        case 'create_appointment':
-            $text = $postData['details'] ?? '';
-            $timestamp = $postData['dateTime'] ?? (new DateTime())->format(DateTime::ATOM);
-            $sender = ($action === 'save_vet_message') ? 'vet' : 'user';
-
-            if (empty($text)) {
-                 http_response_code(400);
-                 echo json_encode(['error' => 'Message details are required.']);
-                 exit;
-            }
-            
-            $newMessage = [
-                'sender' => $sender,
-                'text' => $text,
-                'timestamp' => $timestamp
-            ];
-
-            if ($appointmentIndex !== -1) {
-                $data['appointments'][$appointmentIndex]['chatHistory'][] = $newMessage;
-            } else {
-                $newAppointment = [
-                    'clientId' => $clientId,
-                    'dateTime' => $timestamp, 
-                    'details' => $text,
-                    'chatHistory' => [$newMessage]
-                ];
-                $data['appointments'][] = $newAppointment;
-            }
-            
-            writeData($dataFile, $data);
-            echo json_encode(['status' => 'success', 'message' => 'Message saved.']);
-            break;
-
-        default:
+switch ($action) {
+    case 'get_chat_messages':
+        if (!$clientId) {
             http_response_code(400);
-            echo json_encode(['error' => 'Invalid or missing action']);
-            break;
-    }
+            echo json_encode(['error' => 'clientId mancante']);
+            exit;
+        }
 
-// --- GESTIONE RICHIESTE GET ---
-} else if ($method === 'GET') {
-    $action = $_GET['action'] ?? 'default';
-    $clientId = $_GET['clientId'] ?? null;
+        $allMessages = getMessages($clientId);
+        $since = $_GET['since'] ?? null;
 
-    $data = readData($dataFile);
+        if ($since) {
+            $filteredMessages = array_filter($allMessages, function ($msg) use ($since) {
+                return $msg['timestamp'] > $since;
+            });
+            echo json_encode(array_values($filteredMessages));
+        } else {
+            echo json_encode($allMessages);
+        }
+        break;
 
-    switch ($action) {
-        case 'get_chat_messages':
-            if (!$clientId) {
-                http_response_code(400);
-                echo json_encode(['error' => 'clientId is required']);
-                exit;
-            }
+    case 'create_appointment':
+        $input = json_decode(file_get_contents('php://input'), true);
+        if (!$input || !isset($input['clientId']) || !isset($input['details'])) {
+            http_response_code(400);
+            echo json_encode(['error' => 'Dati di input non validi']);
+            exit;
+        }
 
-            $since = $_GET['since'] ?? null;
-            $chatHistory = [];
+        $userMessage = [
+            'sender' => 'user',
+            'text' => $input['details'],
+            'timestamp' => $input['dateTime']
+        ];
+        saveMessage($input['clientId'], $userMessage);
 
-            foreach ($data['appointments'] as $apt) {
-                if ($apt['clientId'] === $clientId) {
-                    $fullChatHistory = $apt['chatHistory'] ?? [];
+        // Risposta automatica simulata dal veterinario
+        $vetResponse = [
+            'sender' => 'vet',
+            'text' => 'Grazie per la sua richiesta. La contatteremo il prima possibile.',
+            'timestamp' => (new DateTime())->format('c') // Timestamp attuale
+        ];
+        saveMessage($input['clientId'], $vetResponse);
 
-                    if ($since) {
-                        try {
-                            $sinceTimestamp = new DateTime($since);
-                            $chatHistory = array_filter($fullChatHistory, function ($message) use ($sinceTimestamp) {
-                                if (!isset($message['timestamp'])) return false;
-                                try {
-                                    $messageTimestamp = new DateTime($message['timestamp']);
-                                    return $messageTimestamp > $sinceTimestamp;
-                                } catch (Exception $e) {
-                                    return false;
-                                }
-                            });
-                            $chatHistory = array_values($chatHistory);
-                        } catch (Exception $e) {
-                            $chatHistory = [];
-                        }
-                    } else {
-                        $chatHistory = $fullChatHistory;
-                    }
-                    break;
-                }
-            }
-            echo json_encode($chatHistory);
-            break;
+        http_response_code(201); // Created
+        echo json_encode($vetResponse); // Restituisce la risposta del vet
+        break;
 
-        default:
-            echo json_encode(['message' => 'Welcome to the Vetty API. Use a valid action to proceed.']);
-            break;
-    }
+    default:
+        http_response_code(404);
+        echo json_encode(['error' => 'Azione non trovata']);
+        break;
 }
-?>

@@ -1,0 +1,152 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>TEST MOCK - Assistente Virtuale</title>
+<style>
+  body, html { margin: 0; padding: 0; font-family: sans-serif; background: #f0f0f0; }
+  .chat-container { width: 100%; max-width: 500px; margin: 20px auto; border: 1px solid #ccc; background: white; display: flex; flex-direction: column; height: calc(100vh - 40px); }
+  .chat-history { flex: 1; overflow-y: auto; padding: 10px; border-bottom: 1px solid #ccc; display: flex; flex-direction: column; }
+  .message-input { display: flex; padding: 10px; border-top: 1px solid #eee; }
+  .message-input input { flex: 1; padding: 8px; border: 1px solid #ccc; border-radius: 5px; }
+  .message-input button { padding: 8px 12px; margin-left: 10px; background-color: #2c5530; color: white; border: none; border-radius: 5px; cursor: pointer; }
+  .message { margin-bottom: 10px; padding: 8px 12px; border-radius: 15px; max-width: 80%; line-height: 1.4; }
+  .message.user { background: #dcf8c6; align-self: flex-end; margin-left: auto; }
+  .message.vet { background: #e5e5ea; align-self: flex-start; margin-right: auto; }
+</style>
+</head>
+<body>
+
+<div class="chat-container">
+    <div class="chat-history" id="chatHistory"></div>
+    <div class="message-input">
+        <input type="text" id="messageInput" placeholder="Scrivi un messaggio...">
+        <button id="sendButton">Invia</button>
+    </div>
+</div>
+
+<script>
+/**
+ * @fileoverview Logica frontend per l'assistente di chat VettyBMAD con Backend Mock.
+ */
+
+// === MOCK BACKEND ===
+const mockDatabase = {
+    chatHistory: [
+        { sender: 'vet', text: 'Benvenuto! Come posso aiutarla oggi?', timestamp: new Date().toISOString() }
+    ]
+};
+
+/**
+ * Simula il recupero dei messaggi iniziali dal server.
+ * @returns {Promise<object[]>}
+ */
+function mockFetchInitialMessages() {
+    console.log("MOCK: Sto recuperando la cronologia iniziale...");
+    return new Promise(resolve => {
+        setTimeout(() => {
+            console.log("MOCK: Cronologia recuperata.", mockDatabase.chatHistory);
+            resolve(mockDatabase.chatHistory);
+        }, 500);
+    });
+}
+
+/**
+ * Simula l'invio di un messaggio al server e la ricezione di una risposta.
+ * @param {string} userMessage - Il testo inviato dall'utente.
+ * @returns {Promise<object>} - La risposta simulata del veterinario.
+ */
+function mockSendMessage(userMessage) {
+    console.log(`MOCK: L'utente ha inviato: "${userMessage}"`);
+    
+    // Aggiunge il messaggio dell'utente al DB simulato
+    mockDatabase.chatHistory.push({
+        sender: 'user',
+        text: userMessage,
+        timestamp: new Date().toISOString()
+    });
+
+    return new Promise(resolve => {
+        setTimeout(() => {
+            const vetResponse = {
+                sender: 'vet',
+                text: 'Grazie per il suo messaggio. Sto analizzando la sua richiesta...',
+                timestamp: new Date().toISOString()
+            };
+            console.log("MOCK: Il veterinario simulato risponde.");
+            mockDatabase.chatHistory.push(vetResponse);
+            resolve(vetResponse);
+        }, 1500); // Simula un ritardo nella risposta
+    });
+}
+
+
+// === LOGICA FRONTEND ===
+document.addEventListener('DOMContentLoaded', () => {
+    const sendButton = document.getElementById('sendButton');
+    const messageInput = document.getElementById('messageInput');
+
+    sendButton.addEventListener('click', sendMessage);
+    messageInput.addEventListener('keypress', (e) => {
+        if (e.key === 'Enter') sendMessage();
+    });
+
+    // Carica la cronologia iniziale dal backend MOCK.
+    fetchInitialMessages(); 
+});
+
+/**
+ * Aggiunge un singolo messaggio di chat all'interfaccia utente.
+ */
+function addChatMessage(message, forceScroll = false) {
+    const chatHistoryDiv = document.getElementById('chatHistory');
+    const messageDiv = document.createElement('div');
+    messageDiv.className = `message ${message.sender}`;
+    messageDiv.textContent = message.text;
+    
+    chatHistoryDiv.appendChild(messageDiv);
+
+    if (forceScroll || chatHistoryDiv.scrollHeight - chatHistoryDiv.clientHeight <= chatHistoryDiv.scrollTop + 1) {
+        chatHistoryDiv.scrollTop = chatHistoryDiv.scrollHeight;
+    }
+}
+
+/**
+ * Carica la cronologia iniziale.
+ */
+async function fetchInitialMessages() {
+    try {
+        const messages = await mockFetchInitialMessages();
+        const chatHistoryDiv = document.getElementById('chatHistory');
+        chatHistoryDiv.innerHTML = ''; 
+        messages.forEach(msg => addChatMessage(msg));
+    } catch (error) {
+        console.error('Errore durante il caricamento della cronologia MOCK:', error);
+    }
+}
+
+/**
+ * Invia un messaggio dell'utente.
+ */
+async function sendMessage() {
+    const messageInput = document.getElementById('messageInput');
+    const text = messageInput.value.trim();
+    if (!text) return;
+
+    // 1. Aggiungi subito il messaggio dell'utente all'UI
+    addChatMessage({ sender: 'user', text: text }, true);
+    messageInput.value = '';
+    
+    // 2. Invia al backend MOCK e attendi la risposta del "veterinario"
+    try {
+        const vetResponse = await mockSendMessage(text);
+        // 3. Aggiungi la risposta del veterinario all'UI
+        addChatMessage(vetResponse, true);
+    } catch (error) {
+        console.error('Errore durante l\'invio del messaggio MOCK:', error);
+    }
+}
+</script>
+</body>
+</html>
